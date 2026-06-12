@@ -59,6 +59,9 @@
   tr.qualify td:first-child { border-left: 3px solid var(--accent); }
   td.pts { font-weight: 800; color: var(--accent); }
   .loading, .empty { text-align: center; color: var(--muted); padding: 40px 0; font-size: .9rem; }
+  .searchbox { width: 100%; background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 12px 16px; color: var(--text); font-size: 1rem; outline: none; margin-bottom: 6px; }
+  .searchbox:focus { border-color: var(--accent); }
+  .search-hint { color: var(--muted); font-size: .75rem; text-align: center; margin-bottom: 10px; }
   .updated { text-align: center; color: var(--muted); font-size: .7rem; padding: 8px; }
   .err { color: var(--live); text-align: center; padding: 20px; font-size: .85rem; }
 </style>
@@ -74,6 +77,7 @@
   <button data-view="calendar">Calendario</button>
   <button data-view="groups">Grupos</button>
   <button data-view="results">Resultados</button>
+  <button data-view="search">🔍 Equipo</button>
 </nav>
 <main>
   <div id="content"><div class="loading">Cargando…</div></div>
@@ -158,6 +162,59 @@ async function renderRange(filterFn, emptyMsg) {
   return groupByDay(events);
 }
 
+let searchQuery = "";
+let allEventsCache = null, allEventsCacheTime = 0;
+
+async function getAllEvents() {
+  if (allEventsCache && Date.now() - allEventsCacheTime < 60000) return allEventsCache;
+  const j = await fetchJSON(`${API}/scoreboard?dates=${TOURNAMENT_START}-${TOURNAMENT_END}&limit=200`);
+  allEventsCache = j.events || [];
+  allEventsCacheTime = Date.now();
+  return allEventsCache;
+}
+
+function norm(s) {
+  return (s || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
+}
+
+async function renderSearch() {
+  const events = await getAllEvents();
+  const q = norm(searchQuery.trim());
+  let results = "";
+  if (!q) {
+    results = `<div class="empty">Escribe el nombre de un equipo para ver todos sus partidos.</div>`;
+  } else {
+    const matches = events.filter(ev =>
+      ev.competitions[0].competitors.some(c =>
+        norm(c.team.displayName).includes(q) || norm(c.team.abbreviation).includes(q)
+      )
+    );
+    results = matches.length ? groupByDay(matches) : `<div class="empty">Sin partidos para "${searchQuery}".</div>`;
+  }
+  return `<input class="searchbox" id="teamsearch" type="search" placeholder="Buscar equipo… (ej. Mexico, Brazil, Germany)" value="${searchQuery.replace(/"/g, "&quot;")}">
+    <div class="search-hint">Nombres en inglés (Mexico, Germany, Netherlands…)</div>
+    <div id="searchresults">${results}</div>`;
+}
+
+function bindSearch() {
+  const input = document.getElementById("teamsearch");
+  if (!input) return;
+  let t;
+  input.addEventListener("input", () => {
+    searchQuery = input.value;
+    clearTimeout(t);
+    t = setTimeout(async () => {
+      try {
+        const html = await renderSearch();
+        const div = document.createElement("div");
+        div.innerHTML = html;
+        document.getElementById("searchresults").innerHTML = div.querySelector("#searchresults").innerHTML;
+      } catch (e) {}
+    }, 250);
+  });
+  input.focus();
+}
+
 async function renderGroups() {
   const j = await fetchJSON(`https://site.api.espn.com/apis/v2/sports/soccer/fifa.world/standings`);
   const groups = j.children || [];
@@ -188,8 +245,10 @@ async function render() {
     else if (view === "results") {
       html = await renderRange(ev => ev.status.type.state === "post", "Aún no hay resultados.");
     }
+    else if (view === "search") html = await renderSearch();
     else html = await renderGroups();
     $content.innerHTML = html;
+    if (view === "search") bindSearch();
     $updated.textContent = "Actualizado: " + new Date().toLocaleTimeString("es-MX");
   } catch (e) {
     $content.innerHTML = `<div class="err">Error cargando datos (${e.message}). Reintentando en 60s…</div>`;
