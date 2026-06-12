@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mundial 2026 — Live</title>
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon-180.png">
+<meta name="theme-color" content="#0d1117">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Mundial 2026">
+<style>
+  :root {
+    --bg: #0d1117;
+    --card: #161b22;
+    --card2: #1c2330;
+    --border: #2d3646;
+    --text: #e6edf3;
+    --muted: #8b949e;
+    --accent: #00c47d;
+    --live: #ff4d4d;
+    --gold: #f0b429;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: var(--bg); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; min-height: 100vh; }
+  header { padding: 20px 16px 12px; text-align: center; background: linear-gradient(180deg, #11281e 0%, var(--bg) 100%); }
+  header h1 { font-size: 1.5rem; letter-spacing: .5px; }
+  header h1 span { color: var(--accent); }
+  header .sub { color: var(--muted); font-size: .8rem; margin-top: 4px; }
+  nav { display: flex; justify-content: center; gap: 6px; padding: 10px 12px; position: sticky; top: 0; background: rgba(13,17,23,.95); backdrop-filter: blur(8px); z-index: 10; border-bottom: 1px solid var(--border); flex-wrap: wrap; }
+  nav button { background: var(--card); color: var(--muted); border: 1px solid var(--border); padding: 8px 16px; border-radius: 20px; cursor: pointer; font-size: .85rem; font-weight: 600; transition: all .15s; }
+  nav button.active { background: var(--accent); color: #04130c; border-color: var(--accent); }
+  main { max-width: 760px; margin: 0 auto; padding: 16px 12px 60px; }
+  .day-header { color: var(--gold); font-size: .85rem; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; margin: 22px 4px 8px; }
+  .match { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 12px 14px; margin-bottom: 8px; display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 8px; }
+  .match.live { border-color: var(--live); box-shadow: 0 0 12px rgba(255,77,77,.15); }
+  .team { display: flex; align-items: center; gap: 8px; min-width: 0; }
+  .team.home { justify-content: flex-end; text-align: right; }
+  .team img { width: 26px; height: 26px; object-fit: contain; flex-shrink: 0; }
+  .team .name { font-weight: 600; font-size: .92rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .team.winner .name { color: var(--accent); }
+  .center { text-align: center; min-width: 86px; }
+  .score { font-size: 1.25rem; font-weight: 800; letter-spacing: 2px; }
+  .status { font-size: .7rem; color: var(--muted); margin-top: 2px; }
+  .status.live { color: var(--live); font-weight: 700; animation: pulse 1.5s infinite; }
+  @keyframes pulse { 50% { opacity: .5; } }
+  .match .meta { grid-column: 1 / -1; text-align: center; font-size: .7rem; color: var(--muted); margin-top: 4px; border-top: 1px solid var(--border); padding-top: 6px; }
+  .group-card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; margin-bottom: 14px; overflow: hidden; }
+  .group-card h3 { padding: 10px 14px; background: var(--card2); font-size: .9rem; color: var(--gold); }
+  table { width: 100%; border-collapse: collapse; font-size: .85rem; }
+  th { color: var(--muted); font-weight: 600; font-size: .7rem; text-transform: uppercase; padding: 6px 4px; }
+  td { padding: 7px 4px; border-top: 1px solid var(--border); text-align: center; }
+  td.tname { text-align: left; padding-left: 14px; display: flex; align-items: center; gap: 8px; font-weight: 600; }
+  td.tname img { width: 20px; height: 20px; object-fit: contain; }
+  th.tname { text-align: left; padding-left: 14px; }
+  tr.qualify td:first-child { border-left: 3px solid var(--accent); }
+  td.pts { font-weight: 800; color: var(--accent); }
+  .loading, .empty { text-align: center; color: var(--muted); padding: 40px 0; font-size: .9rem; }
+  .updated { text-align: center; color: var(--muted); font-size: .7rem; padding: 8px; }
+  .err { color: var(--live); text-align: center; padding: 20px; font-size: .85rem; }
+</style>
+</head>
+<body>
+<header>
+  <h1>⚽ MUNDIAL <span>2026</span></h1>
+  <div class="sub">México · USA · Canadá — resultados en vivo</div>
+</header>
+<nav>
+  <button data-view="today" class="active">Hoy</button>
+  <button data-view="calendar">Calendario</button>
+  <button data-view="groups">Grupos</button>
+  <button data-view="results">Resultados</button>
+</nav>
+<main>
+  <div id="content"><div class="loading">Cargando…</div></div>
+  <div class="updated" id="updated"></div>
+</main>
+<script>
+const API = "https://site.api.espn.com/apis/site/v2/sports/soccer/fifa.world";
+const TOURNAMENT_START = "20260611", TOURNAMENT_END = "20260719";
+let view = "today";
+let refreshTimer = null;
+
+const $content = document.getElementById("content");
+const $updated = document.getElementById("updated");
+
+document.querySelectorAll("nav button").forEach(b => b.addEventListener("click", () => {
+  document.querySelectorAll("nav button").forEach(x => x.classList.remove("active"));
+  b.classList.add("active");
+  view = b.dataset.view;
+  render();
+}));
+
+function fmtDate(d) {
+  return new Date(d).toLocaleDateString("es-MX", { weekday: "long", day: "numeric", month: "long" });
+}
+function fmtTime(d) {
+  return new Date(d).toLocaleTimeString("es-MX", { hour: "2-digit", minute: "2-digit" });
+}
+function dayKey(d) { return new Date(d).toLocaleDateString("sv"); }
+
+function matchHTML(ev) {
+  const comp = ev.competitions[0];
+  const home = comp.competitors.find(c => c.homeAway === "home");
+  const away = comp.competitors.find(c => c.homeAway === "away");
+  const st = ev.status.type;
+  const isLive = st.state === "in";
+  const done = st.state === "post";
+  const score = (done || isLive) ? `${home.score ?? ""} – ${away.score ?? ""}` : fmtTime(ev.date);
+  const statusTxt = isLive ? (st.shortDetail || "EN VIVO") : done ? "Final" : fmtDate(ev.date);
+  const venue = comp.venue?.fullName ? `${comp.venue.fullName}${comp.venue.address?.city ? " · " + comp.venue.address.city : ""}` : "";
+  const note = comp.notes?.[0]?.headline || "";
+  const teamHTML = (t, side) => `
+    <div class="team ${side} ${t.winner ? "winner" : ""}">
+      ${side === "home" ? `<span class="name">${t.team.displayName}</span><img src="${t.team.logo || ""}" alt="" onerror="this.style.display='none'">`
+                        : `<img src="${t.team.logo || ""}" alt="" onerror="this.style.display='none'"><span class="name">${t.team.displayName}</span>`}
+    </div>`;
+  return `<div class="match ${isLive ? "live" : ""}">
+    ${teamHTML(home, "home")}
+    <div class="center">
+      <div class="score">${score}</div>
+      <div class="status ${isLive ? "live" : ""}">${isLive ? "🔴 " : ""}${statusTxt}</div>
+    </div>
+    ${teamHTML(away, "away")}
+    ${(note || venue) ? `<div class="meta">${[note, venue].filter(Boolean).join(" — ")}</div>` : ""}
+  </div>`;
+}
+
+function groupByDay(events) {
+  const days = {};
+  for (const ev of events) (days[dayKey(ev.date)] ||= []).push(ev);
+  return Object.keys(days).sort().map(k =>
+    `<div class="day-header">${fmtDate(days[k][0].date)}</div>` + days[k].map(matchHTML).join("")
+  ).join("");
+}
+
+async function fetchJSON(url) {
+  const r = await fetch(url);
+  if (!r.ok) throw new Error("HTTP " + r.status);
+  return r.json();
+}
+
+async function renderToday() {
+  const j = await fetchJSON(`${API}/scoreboard`);
+  const events = j.events || [];
+  if (!events.length) return `<div class="empty">No hay partidos hoy.</div>`;
+  return groupByDay(events);
+}
+
+async function renderRange(filterFn, emptyMsg) {
+  const j = await fetchJSON(`${API}/scoreboard?dates=${TOURNAMENT_START}-${TOURNAMENT_END}&limit=200`);
+  const events = (j.events || []).filter(filterFn);
+  if (!events.length) return `<div class="empty">${emptyMsg}</div>`;
+  return groupByDay(events);
+}
+
+async function renderGroups() {
+  const j = await fetchJSON(`https://site.api.espn.com/apis/v2/sports/soccer/fifa.world/standings`);
+  const groups = j.children || [];
+  if (!groups.length) return `<div class="empty">Tablas aún no disponibles.</div>`;
+  return groups.map(g => {
+    const rows = (g.standings?.entries || []).map((e, i) => {
+      const s = {};
+      for (const st of e.stats) s[st.name || st.type] = st.displayValue;
+      const logo = e.team.logos?.[0]?.href || "";
+      return `<tr class="${i < 2 ? "qualify" : ""}">
+        <td class="tname"><img src="${logo}" onerror="this.style.display='none'">${e.team.displayName}</td>
+        <td>${s.gamesPlayed ?? "0"}</td><td>${s.wins ?? "0"}</td><td>${s.ties ?? "0"}</td><td>${s.losses ?? "0"}</td>
+        <td>${s.pointDifferential ?? s.pointsDiff ?? "0"}</td><td class="pts">${s.points ?? "0"}</td>
+      </tr>`;
+    }).join("");
+    return `<div class="group-card"><h3>${g.name}</h3>
+      <table><thead><tr><th class="tname">Equipo</th><th>PJ</th><th>G</th><th>E</th><th>P</th><th>DG</th><th>Pts</th></tr></thead>
+      <tbody>${rows}</tbody></table></div>`;
+  }).join("");
+}
+
+async function render() {
+  $content.innerHTML = `<div class="loading">Cargando…</div>`;
+  try {
+    let html;
+    if (view === "today") html = await renderToday();
+    else if (view === "calendar") html = await renderRange(ev => ev.status.type.state !== "post", "No hay partidos programados.");
+    else if (view === "results") {
+      html = await renderRange(ev => ev.status.type.state === "post", "Aún no hay resultados.");
+    }
+    else html = await renderGroups();
+    $content.innerHTML = html;
+    $updated.textContent = "Actualizado: " + new Date().toLocaleTimeString("es-MX");
+  } catch (e) {
+    $content.innerHTML = `<div class="err">Error cargando datos (${e.message}). Reintentando en 60s…</div>`;
+  }
+  clearTimeout(refreshTimer);
+  refreshTimer = setTimeout(render, 60000);
+}
+
+render();
+</script>
+</body>
+</html>
