@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Mundial 2026 — Live</title>
+<title>World Cup 2026 — by @janmexico</title>
 <link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" href="icon-180.png">
 <meta name="theme-color" content="#0d1117">
@@ -28,6 +28,8 @@
   header h1 { font-size: 1.5rem; letter-spacing: .5px; }
   header h1 span { color: var(--accent); }
   header .sub { color: var(--muted); font-size: .8rem; margin-top: 4px; }
+  header .logo-chip { display: inline-flex; align-items: center; justify-content: center; background: #fff; border-radius: 14px; padding: 8px 12px; margin-bottom: 10px; }
+  header .logo-chip img { height: 64px; display: block; }
   nav { display: flex; justify-content: center; gap: 6px; padding: 10px 12px; position: sticky; top: 0; background: rgba(13,17,23,.95); backdrop-filter: blur(8px); z-index: 10; border-bottom: 1px solid var(--border); flex-wrap: wrap; }
   nav button { background: var(--card); color: var(--muted); border: 1px solid var(--border); padding: 8px 16px; border-radius: 20px; cursor: pointer; font-size: .85rem; font-weight: 600; transition: all .15s; }
   nav button.active { background: var(--accent); color: #04130c; border-color: var(--accent); }
@@ -63,8 +65,9 @@
 </head>
 <body>
 <header>
-  <h1>⚽ MUNDIAL <span>2026</span></h1>
-  <div class="sub">México · USA · Canadá — resultados en vivo</div>
+  <div class="logo-chip"><img src="logo-2026.png" alt="FIFA World Cup 2026"></div>
+  <h1>WORLD CUP <span>2026</span></h1>
+  <div class="sub">by @janmexico — resultados en vivo</div>
 </header>
 <nav>
   <button data-view="today" class="active">Hoy</button>
