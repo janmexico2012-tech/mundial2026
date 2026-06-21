@@ -242,19 +242,24 @@ async function renderCalificados() {
 
   for (const g of groups) {
     const entries = g.standings?.entries || [];
-    entries.forEach((e, i) => {
+    for (const e of entries) {
       const sm = {};
       for (const st of e.stats) sm[st.name || st.type] = st.displayValue;
-      const played = parseInt(sm.gamesPlayed) || 0;
-      const pts = parseInt(sm.points) || 0;
-      const logo = e.team.logos?.[0]?.href || "";
-      if (i < 2 && played >= 3) {
-        classified.push({ name: e.team.displayName, logo, group: g.name, pos: i + 1, pts });
+      if (parseInt(sm.advanced) >= 1) {
+        classified.push({
+          name: e.team.displayName,
+          logo: e.team.logos?.[0]?.href || "",
+          group: g.name,
+          pos: parseInt(sm.rank) || 0,
+          pts: parseInt(sm.points) || 0
+        });
       }
-    });
+    }
   }
 
   if (!classified.length) return `<div class="empty">Aún no hay equipos clasificados.</div>`;
+
+  classified.sort((a, b) => a.group.localeCompare(b.group) || a.pos - b.pos);
 
   const card = t => `
     <div class="qual-card">
@@ -282,7 +287,7 @@ async function renderBracket() {
     (rounds[note] ||= []).push(ev);
   }
   if (!Object.keys(rounds).length)
-    return `<div class="empty">El bracket eliminatorio comenzará cuando termine la fase de grupos.</div>`;
+    return `<div class="empty">El bracket eliminatorio estará disponible a partir del 28 de junio, cuando terminen los juegos de grupos.</div>`;
   const sorted = Object.entries(rounds).sort(([a],[b]) => (ROUND_ORDER[a]||99)-(ROUND_ORDER[b]||99));
   return sorted.map(([round, games]) =>
     `<div class="day-header">${round}</div>` + games.map(matchHTML).join("")
@@ -291,22 +296,22 @@ async function renderBracket() {
 
 async function renderGoleadores() {
   try {
-    const j = await fetchJSON(`https://site.api.espn.com/apis/site/v2/sports/soccer/fifa.world/leaders`);
-    const cats = j.categories || [];
-    const goals = cats.find(c => /goal/i.test(c.name || c.displayName || ""));
-    const list = goals?.leaders?.[0]?.leaders || [];
+    const j = await fetchJSON(`https://site.api.espn.com/apis/site/v2/sports/soccer/fifa.world/statistics`);
+    const cat = (j.stats || []).find(s => s.name === "goalsLeaders" || /goal/i.test(s.displayName || ""));
+    const list = cat?.leaders || [];
     if (!list.length) throw new Error("sin datos");
     return `<div class="day-header">⚽ Goleadores</div>` + list.slice(0, 20).map((l, i) => {
-      const teamLogo = l.team?.logos?.[0]?.href || "";
+      const teamLogo = l.athlete?.team?.logos?.[0]?.href || "";
       const photo = l.athlete?.headshot?.href || teamLogo;
+      const goals = Math.round(l.value) || l.displayValue;
       return `<div class="qual-card">
         <div class="rank-num ${i < 3 ? "top" : ""}">${i + 1}</div>
-        <img src="${photo}" alt="" onerror="this.src='${teamLogo}';this.onerror=null" style="border-radius:50%;width:32px;height:32px;object-fit:cover">
+        <img src="${photo}" alt="" onerror="this.src='${teamLogo}';this.onerror=null" style="border-radius:50%;width:32px;height:32px;object-fit:cover;flex-shrink:0">
         <div class="qual-info">
           <span class="qual-name">${l.athlete?.displayName || "—"}</span>
-          <span class="qual-meta">${l.team?.displayName || ""}</span>
+          <span class="qual-meta">${l.athlete?.team?.displayName || ""}</span>
         </div>
-        <div class="qual-pts">${l.displayValue} <span style="font-size:.7rem;color:var(--muted)">goles</span></div>
+        <div class="qual-pts">${goals} <span style="font-size:.7rem;color:var(--muted)">gol${goals !== 1 ? "es" : ""}</span></div>
       </div>`;
     }).join("");
   } catch(e) {
