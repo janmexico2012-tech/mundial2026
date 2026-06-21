@@ -92,7 +92,7 @@
   <button data-view="groups">Grupos</button>
   <button data-view="results">Resultados</button>
   <button data-view="calificados">Calificados</button>
-  <button data-view="bracket">Bracket</button>
+  <button data-view="bracket">Eliminatorias</button>
   <button data-view="goleadores">Goleadores</button>
   <button data-view="miteam">⭐ Mi Equipo</button>
   <button data-view="search">🔍 Buscar</button>
@@ -258,7 +258,7 @@ async function renderCalificados() {
     }
   }
 
-  if (!classified.length) return `<div class="empty">Aún no hay equipos clasificados.</div>`;
+  if (!classified.length) return `<div class="empty">Aún no hay equipos clasificados (${groups.length} grupos cargados).</div>`;
 
   classified.sort((a, b) => a.group.localeCompare(b.group) || a.pos - b.pos);
 
@@ -301,7 +301,7 @@ async function renderGoleadores() {
     const cat = (j.stats || []).find(s => s.name === "goalsLeaders" || /goal/i.test(s.displayName || ""));
     const list = cat?.leaders || [];
     if (!list.length) throw new Error("sin datos");
-    return `<div class="day-header">⚽ Goleadores</div>` + list.slice(0, 20).map((l, i) => {
+    return `<div class="day-header">⚽ Goleadores</div>` + list.slice(0, 5).map((l, i) => {
       const teamLogo = l.athlete?.team?.logos?.[0]?.href || "";
       const photo = l.athlete?.headshot?.href || teamLogo;
       const goals = Math.round(l.value) || l.displayValue;
@@ -316,7 +316,7 @@ async function renderGoleadores() {
       </div>`;
     }).join("");
   } catch(e) {
-    return `<div class="empty">Estadísticas de goleadores no disponibles aún.</div>`;
+    return `<div class="empty">Goleadores no disponibles (${e.message}).</div>`;
   }
 }
 
