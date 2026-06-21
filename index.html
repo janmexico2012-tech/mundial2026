@@ -243,15 +243,16 @@ async function renderCalificados() {
   for (const g of groups) {
     const entries = g.standings?.entries || [];
     for (const e of entries) {
-      const sm = {};
-      for (const st of e.stats) sm[st.name || st.type] = st.displayValue;
-      if (parseInt(sm.advanced) >= 1) {
+      const stats = e.stats || [];
+      const find = key => stats.find(s => s.name === key || s.type === key);
+      const advanced = find("advanced");
+      if ((advanced?.value ?? 0) >= 1) {
         classified.push({
           name: e.team.displayName,
           logo: e.team.logos?.[0]?.href || "",
           group: g.name,
-          pos: parseInt(sm.rank) || 0,
-          pts: parseInt(sm.points) || 0
+          pos: find("rank")?.value || 0,
+          pts: find("points")?.value || 0
         });
       }
     }
