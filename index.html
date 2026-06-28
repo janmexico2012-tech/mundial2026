@@ -400,10 +400,10 @@ async function renderEliminated() {
   for (const g of (j.children || [])) {
     const entries = g.standings?.entries || [];
     if (!entries.length) continue;
-    const gp = e => { let v = 0; for (const s of e.stats) if ((s.name || s.type) === "gamesPlayed") v = s.value; return v; };
-    if (entries.every(e => gp(e) >= 3)) {
-      const last = entries[entries.length - 1];
-      out.push({ name: last.team.displayName, logo: last.team.logos?.[0]?.href || "", reason: `Último del ${g.name} — fuera en fase de grupos` });
+    const statOf = (e, key) => { let v = 0; for (const s of e.stats) if ((s.name || s.type) === key) v = s.value; return v; };
+    if (entries.every(e => statOf(e, "gamesPlayed") >= 3)) {
+      const last = entries.reduce((a, b) => statOf(b, "rank") > statOf(a, "rank") ? b : a);
+      out.push({ name: last.team.displayName, logo: last.team.logos?.[0]?.href || "", reason: `4º del ${g.name} — fuera en fase de grupos` });
     }
   }
   for (const ev of events.filter(e => isKnockout(e) && e.status.type.state === "post")) {
@@ -424,8 +424,10 @@ async function renderGroups() {
   const j = await fetchJSON(`https://site.api.espn.com/apis/v2/sports/soccer/fifa.world/standings`);
   const groups = j.children || [];
   if (!groups.length) return `<div class="empty">Tablas aún no disponibles.</div>`;
+  const rankVal = e => { let v = 99; for (const st of e.stats) if ((st.name || st.type) === "rank") v = st.value; return v; };
   return groups.map(g => {
-    const rows = (g.standings?.entries || []).map((e, i) => {
+    const ordered = [...(g.standings?.entries || [])].sort((a, b) => rankVal(a) - rankVal(b));
+    const rows = ordered.map((e, i) => {
       const s = {};
       for (const st of e.stats) s[st.name || st.type] = st.displayValue;
       const logo = e.team.logos?.[0]?.href || "";
