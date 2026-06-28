@@ -9,7 +9,7 @@
 <meta name="theme-color" content="#0d1117">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="FIFA 2026">
+<meta name="apple-mobile-web-app-title" content="Mundial 2026">
 <style>
   :root {
     --bg: #0d1117;
@@ -62,23 +62,13 @@
   .searchbox { width: 100%; background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 12px 16px; color: var(--text); font-size: 1rem; outline: none; margin-bottom: 6px; }
   .searchbox:focus { border-color: var(--accent); }
   .search-hint { color: var(--muted); font-size: .75rem; text-align: center; margin-bottom: 10px; }
+  .elim-row { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 12px 14px; margin-bottom: 8px; display: flex; align-items: center; gap: 12px; opacity: .85; }
+  .elim-row img { width: 28px; height: 28px; object-fit: contain; flex-shrink: 0; filter: grayscale(.4); }
+  .elim-row .ename { font-weight: 700; font-size: .95rem; }
+  .elim-row .ereason { font-size: .72rem; color: var(--muted); margin-top: 2px; }
+  .elim-x { margin-left: auto; color: var(--live); font-size: 1.1rem; }
   .updated { text-align: center; color: var(--muted); font-size: .7rem; padding: 8px; }
   .err { color: var(--live); text-align: center; padding: 20px; font-size: .85rem; }
-  .ig-chip { display: inline-flex; align-items: center; gap: 7px; margin-top: 8px; padding: 6px 14px; border-radius: 20px; background: linear-gradient(135deg,#f9ce34,#ee2a7b,#6228d7); text-decoration: none; color: #fff; font-size: .78rem; font-weight: 700; }
-  .qual-card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 10px 14px; margin-bottom: 8px; display: flex; align-items: center; gap: 12px; }
-  .qual-card img { width: 32px; height: 32px; object-fit: contain; flex-shrink: 0; }
-  .qual-info { flex: 1; min-width: 0; }
-  .qual-name { font-weight: 700; font-size: .95rem; display: block; }
-  .qual-meta { font-size: .72rem; color: var(--muted); }
-  .qual-pts { font-weight: 800; color: var(--accent); font-size: 1rem; white-space: nowrap; }
-  .qual-badge { display: inline-block; font-size: .65rem; font-weight: 700; padding: 2px 7px; border-radius: 10px; margin-left: 6px; vertical-align: middle; }
-  .qual-badge.ok { background: rgba(0,196,125,.15); color: var(--accent); }
-  .qual-badge.third { background: rgba(240,180,41,.15); color: var(--gold); }
-  .qual-badge.wait { background: rgba(139,148,158,.12); color: var(--muted); }
-  .rank-num { font-size: 1rem; font-weight: 800; color: var(--muted); min-width: 22px; text-align: center; }
-  .rank-num.top { color: var(--gold); }
-  .team-pick:hover { border-color: var(--accent); background: var(--card2); }
-  .myteam-header { border-color: var(--accent) !important; }
 </style>
 </head>
 <body>
@@ -86,22 +76,14 @@
   <div class="logo-chip"><img src="logo-2026.png" alt="FIFA World Cup 2026"></div>
   <h1>WORLD CUP <span>2026</span></h1>
   <div class="sub">by @janmexico — resultados en vivo</div>
-  <a href="https://www.instagram.com/janmexico/" target="_blank" rel="noopener" class="ig-chip">
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="2" width="20" height="20" rx="5" ry="5"/><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"/><line x1="17.5" y1="6.5" x2="17.51" y2="6.5"/></svg>
-    Sígueme en Instagram · @janmexico
-  </a>
 </header>
 <nav>
   <button data-view="today" class="active">Hoy</button>
   <button data-view="calendar">Calendario</button>
   <button data-view="groups">Grupos</button>
   <button data-view="results">Resultados</button>
-  <button data-view="calificados">Calificados</button>
-  <button data-view="bracket">Eliminatorias</button>
-  <button data-view="goleadores">Goleadores</button>
-  <button data-view="miteam">⭐ Mi Equipo</button>
-  <button data-view="search">🔍 Buscar</button>
-  <button id="btn-install" onclick="installApp()" style="display:none;background:var(--accent);color:#04130c;border-color:var(--accent)">⬇ Instalar App</button>
+  <button data-view="eliminated">Eliminados</button>
+  <button data-view="search">🔍 Equipo</button>
 </nav>
 <main>
   <div id="content"><div class="loading">Cargando…</div></div>
@@ -239,144 +221,41 @@ function bindSearch() {
   input.focus();
 }
 
-async function renderCalificados() {
-  const j = await fetchJSON(`https://site.api.espn.com/apis/v2/sports/soccer/fifa.world/standings`);
-  const groups = j.children || [];
-  if (!groups.length) return `<div class="empty">Tablas aún no disponibles.</div>`;
+function isKnockout(ev) {
+  const h = norm(ev.competitions[0].notes?.[0]?.headline || "");
+  if (/group|grupo/.test(h)) return false;
+  return /round of|final|quarter|cuartos|semi|octavos|play|knockout|16|32|eliminat/.test(h);
+}
 
-  const classified = [];
-
-  for (const g of groups) {
+async function renderEliminated() {
+  const [j, events] = await Promise.all([
+    fetchJSON(`https://site.api.espn.com/apis/v2/sports/soccer/fifa.world/standings`),
+    getAllEvents()
+  ]);
+  const out = [];
+  // 4º de cada grupo (no puede avanzar) una vez jugados sus 3 partidos
+  for (const g of (j.children || [])) {
     const entries = g.standings?.entries || [];
-    for (const e of entries) {
-      const stats = e.stats || [];
-      const find = key => stats.find(s => s.name === key || s.type === key);
-      const advanced = find("advanced");
-      if ((advanced?.value ?? 0) >= 1) {
-        classified.push({
-          name: e.team.displayName,
-          logo: e.team.logos?.[0]?.href || "",
-          group: g.name,
-          pos: find("rank")?.value || 0,
-          pts: find("points")?.value || 0
-        });
-      }
+    if (!entries.length) continue;
+    const gp = e => { let v = 0; for (const s of e.stats) if ((s.name || s.type) === "gamesPlayed") v = s.value; return v; };
+    if (entries.every(e => gp(e) >= 3)) {
+      const last = entries[entries.length - 1];
+      out.push({ name: last.team.displayName, logo: last.team.logos?.[0]?.href || "", reason: `Último del ${g.name} — fuera en fase de grupos` });
     }
   }
-
-  if (!classified.length) return `<div class="empty">Aún no hay equipos clasificados (${groups.length} grupos cargados).</div>`;
-
-  classified.sort((a, b) => a.group.localeCompare(b.group) || a.pos - b.pos);
-
-  const card = t => `
-    <div class="qual-card">
-      <img src="${t.logo}" alt="" onerror="this.style.display='none'">
-      <div class="qual-info">
-        <span class="qual-name">${t.name}<span class="qual-badge ok">Clasificado</span></span>
-        <span class="qual-meta">${t.group} · ${t.pos}° lugar</span>
-      </div>
-      <div class="qual-pts">${t.pts} pts</div>
-    </div>`;
-
-  return `<div class="day-header">✅ Clasificados — ${classified.length} equipo${classified.length !== 1 ? "s" : ""}</div>`
-    + classified.map(card).join("");
-}
-
-const ROUND_ORDER = {"Round of 32":1,"Round of 16":2,"Quarterfinal":3,"Semifinal":4,"Third Place":5,"Final":6};
-
-async function renderBracket() {
-  const j = await fetchJSON(`${API}/scoreboard?dates=${TOURNAMENT_START}-${TOURNAMENT_END}&limit=200`);
-  const events = j.events || [];
-  const rounds = {};
-  for (const ev of events) {
-    const note = ev.competitions[0].notes?.[0]?.headline || "";
-    if (!note || /^Grupo|^Group [A-Z]$/i.test(note)) continue;
-    (rounds[note] ||= []).push(ev);
+  // perdedores de partidos de eliminatoria ya jugados
+  for (const ev of events.filter(e => isKnockout(e) && e.status.type.state === "post")) {
+    const comp = ev.competitions[0];
+    const loser = comp.competitors.find(c => c.winner === false);
+    if (loser) out.push({ name: loser.team.displayName, logo: loser.team.logo || "", reason: `Eliminado en ${comp.notes?.[0]?.headline || "eliminatoria"}` });
   }
-  if (!Object.keys(rounds).length)
-    return `<div class="empty">El bracket eliminatorio estará disponible a partir del 28 de junio, cuando terminen los juegos de grupos.</div>`;
-  const sorted = Object.entries(rounds).sort(([a],[b]) => (ROUND_ORDER[a]||99)-(ROUND_ORDER[b]||99));
-  return sorted.map(([round, games]) =>
-    `<div class="day-header">${round}</div>` + games.map(matchHTML).join("")
-  ).join("");
-}
-
-async function renderGoleadores() {
-  try {
-    const j = await fetchJSON(`https://site.api.espn.com/apis/site/v2/sports/soccer/fifa.world/statistics`);
-    const cat = (j.stats || []).find(s => s.name === "goalsLeaders" || /goal/i.test(s.displayName || ""));
-    const list = cat?.leaders || [];
-    if (!list.length) throw new Error("sin datos");
-    return `<div class="day-header">⚽ Goleadores</div>` + list.slice(0, 5).map((l, i) => {
-      const teamLogo = l.athlete?.team?.logos?.[0]?.href || "";
-      const photo = l.athlete?.headshot?.href || teamLogo;
-      const goals = Math.round(l.value) || l.displayValue;
-      return `<div class="qual-card">
-        <div class="rank-num ${i < 3 ? "top" : ""}">${i + 1}</div>
-        <img src="${photo}" alt="" onerror="this.src='${teamLogo}';this.onerror=null" style="border-radius:50%;width:32px;height:32px;object-fit:cover;flex-shrink:0">
-        <div class="qual-info">
-          <span class="qual-name">${l.athlete?.displayName || "—"}</span>
-          <span class="qual-meta">${l.athlete?.team?.displayName || ""}</span>
-        </div>
-        <div class="qual-pts">${goals} <span style="font-size:.7rem;color:var(--muted)">gol${goals !== 1 ? "es" : ""}</span></div>
-      </div>`;
-    }).join("");
-  } catch(e) {
-    return `<div class="empty">Goleadores no disponibles (${e.message}).</div>`;
-  }
-}
-
-let myTeam = (() => { try { return JSON.parse(localStorage.getItem("wc26_myteam")); } catch(e) { return null; } })();
-
-async function renderMiEquipo() {
-  if (!myTeam) {
-    const j = await fetchJSON(`https://site.api.espn.com/apis/v2/sports/soccer/fifa.world/standings`);
-    const teams = (j.children || []).flatMap(g =>
-      (g.standings?.entries || []).map(e => ({
-        id: e.team.id, name: e.team.displayName,
-        logo: e.team.logos?.[0]?.href || "", group: g.name
-      }))
-    ).sort((a,b) => a.name.localeCompare(b.name));
-    return `<div class="day-header">Elige tu selección</div>
-      <div id="team-picker">${teams.map(t => `
-        <div class="qual-card team-pick" data-team='${JSON.stringify(t).replace(/'/g,"&#39;")}' style="cursor:pointer">
-          <img src="${t.logo}" alt="" onerror="this.style.display='none'">
-          <div class="qual-info">
-            <span class="qual-name">${t.name}</span>
-            <span class="qual-meta">${t.group}</span>
-          </div>
-        </div>`).join("")}
-      </div>`;
-  }
-  const events = await getAllEvents();
-  const matches = events.filter(ev =>
-    ev.competitions[0].competitors.some(c => c.team.id === myTeam.id)
-  );
-  const header = `<div class="qual-card myteam-header" style="margin-bottom:14px">
-    <img src="${myTeam.logo}" alt="" onerror="this.style.display='none'">
-    <div class="qual-info">
-      <span class="qual-name">${myTeam.name}</span>
-      <span class="qual-meta">${myTeam.group}</span>
-    </div>
-    <button onclick="clearMyTeam()" style="background:transparent;border:1px solid var(--border);color:var(--muted);padding:4px 10px;border-radius:8px;cursor:pointer;font-size:.75rem">Cambiar</button>
-  </div>`;
-  return header + (matches.length ? groupByDay(matches) : `<div class="empty">Sin partidos encontrados.</div>`);
-}
-
-function bindMiEquipo() {
-  document.querySelectorAll(".team-pick").forEach(el => {
-    el.addEventListener("click", () => {
-      try { myTeam = JSON.parse(el.dataset.team.replace(/&#39;/g,"'")); } catch(e) { return; }
-      localStorage.setItem("wc26_myteam", JSON.stringify(myTeam));
-      render();
-    });
-  });
-}
-
-function clearMyTeam() {
-  myTeam = null;
-  localStorage.removeItem("wc26_myteam");
-  render();
+  if (!out.length) return `<div class="empty">Aún no hay equipos eliminados.<br>La fase de grupos sigue en curso.</div>`;
+  return `<div class="search-hint">${out.length} equipo(s) eliminado(s)</div>` + out.map(t => `
+    <div class="elim-row">
+      <img src="${t.logo}" onerror="this.style.display='none'">
+      <div><div class="ename">${t.name}</div><div class="ereason">${t.reason}</div></div>
+      <span class="elim-x">✕</span>
+    </div>`).join("");
 }
 
 async function renderGroups() {
@@ -410,14 +289,10 @@ async function render() {
       html = await renderRange(ev => ev.status.type.state === "post", "Aún no hay resultados.");
     }
     else if (view === "search") html = await renderSearch();
-    else if (view === "calificados") html = await renderCalificados();
-    else if (view === "bracket") html = await renderBracket();
-    else if (view === "goleadores") html = await renderGoleadores();
-    else if (view === "miteam") html = await renderMiEquipo();
+    else if (view === "eliminated") html = await renderEliminated();
     else html = await renderGroups();
     $content.innerHTML = html;
     if (view === "search") bindSearch();
-    if (view === "miteam") bindMiEquipo();
     $updated.textContent = "Actualizado: " + new Date().toLocaleTimeString("es-MX");
   } catch (e) {
     $content.innerHTML = `<div class="err">Error cargando datos (${e.message}). Reintentando en 60s…</div>`;
@@ -427,38 +302,6 @@ async function render() {
 }
 
 render();
-
-// ── Instalación PWA ──
-let deferredPrompt = null;
-const btnInstall = document.getElementById("btn-install");
-const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
-const isStandalone = window.matchMedia("(display-mode: standalone)").matches || navigator.standalone;
-
-if (!isStandalone) {
-  if (isIOS) {
-    btnInstall.style.display = "block";
-  }
-  window.addEventListener("beforeinstallprompt", e => {
-    e.preventDefault();
-    deferredPrompt = e;
-    btnInstall.style.display = "block";
-  });
-  window.addEventListener("appinstalled", () => {
-    deferredPrompt = null;
-    btnInstall.style.display = "none";
-  });
-}
-
-async function installApp() {
-  if (deferredPrompt) {
-    deferredPrompt.prompt();
-    await deferredPrompt.userChoice;
-    deferredPrompt = null;
-    btnInstall.style.display = "none";
-  } else if (isIOS) {
-    alert("En Safari: toca el botón Compartir ↑ (cuadro con flecha) y luego \"Agregar a pantalla de inicio\".");
-  }
-}
 </script>
 </body>
 </html>
